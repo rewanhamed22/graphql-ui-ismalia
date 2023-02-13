@@ -1,24 +1,33 @@
-const mongoose = require('mongoose');
-
+const mongoose = require("mongoose");
 
 const { Schema } = mongoose;
 
-const commentSchema = new Schema({
-	consent:{
-		type:String,
-		require:true
-	},
-	userId:{
-		type:Schema.Types.ObjectId,
-		ref:'User',
-		require:true
-	},
-	postId:{
-		type:Schema.Types.ObjectId,
-		ref:'Post',
-		require:true
-	}
-	
+const postSchema = new Schema(
+  {
+    title: {
+      type: String,
+      require: true,
+    },
+    content: {
+      type: String,
+      require: true,
+    },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+  },
+  {
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
+);
+
+postSchema.virtual("comments", {
+  ref: "Comment",
+  foreignField: "postId",
+  localField: "_id",
 });
-const Comment = mongoose.model('Comment',commentSchema);
-module.exports = Comment;
+
+const Post = mongoose.model("Post", postSchema);
+module.exports = Post;
