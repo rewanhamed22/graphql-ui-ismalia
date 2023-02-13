@@ -8,43 +8,57 @@ const jwt = require('jsonwebtoken')
 const User  = require('./models/User');
 const Post = require('./models/Post');
 require('./connection');
-const secret =  'mysecret'
+const secret =  'mysecret';
 
 
 /// lab //////
 // update post
 // delete post 
 // get one post 
-// post commments : crud operation 
+// post comments : crud operation 
 // on getting post : comments
 
 const schema = buildSchema(`
-	type Post {
-		title:String!
-		content:String!
-		user:User
-	}
-	type User {
-		name:String!
-		email:String!
-		posts:[Post]
-	}
-	input UserInput {
-		name:String!
-		email:String!
-		password:String!
-	}
-	type Query {
-		test:String
-		usersGetAll:[User!]!
-		userGetOne(id:ID!):User!
-		getMyPosts(token:String!):[Post!]!
-	}
-	type Mutation {
-		userCreate(input:UserInput):User
-		userLogin(email:String!,password:String!):String
-		postCreate(title:String!,content:String!,token:String!):String
-	}
+type Post {
+	  title:String!
+	  content:String!
+	  user:User,
+  comments:[comment]
+  }
+		type User {
+			name:String!
+			email:String!
+			posts:[Post]
+		}
+		input UserInput {
+			name:String!
+			email:String!
+			password:String!
+		}
+	  type comment{
+		content:String,
+		postId:Post,
+		userId:User
+	  }
+		type Query {
+			test:String
+			usersGetAll:[User!]!
+			userGetOne(id:ID!):User!
+			getMyPosts(token:String!):[Post!]!,
+		getOnePost(token:String!,postId:ID!):Post!
+		getComment(token:String!,postId:ID!,commentId:ID!):comment
+		getAllComments(token:String!,postId:ID!):[comment!]
+		}
+		type Mutation {
+			userCreate(input:UserInput):User
+			userLogin(email:String!,password:String!):String
+			postCreate(title:String!,content:String!,token:String!):String
+			updatePost(token:String!,postId:ID!,title:String,content:String):String
+		deletePost(token:String!,postId:ID!):String
+		createComment(token:String!,postId:ID!,content:String!):String
+		updateComment( token:String!, postId:ID!, commentId:ID!,content:String!):String
+		deleteComment(token:String!, postId:ID!, commentId:ID!):String
+		}
 `)
 const userQueries = {
 	test:async()=>{
@@ -104,13 +118,95 @@ const postMutations = {
 		console.log('user',user)
 		await post.save();
 		return 'post created'
-	}
+	},
+	postUpdate: async ({ title, content, token, postId }) => {
+		const user = await auth(token);
+		const post = await Post.findOneAndUpdate(
+		  { userId: user.id, _id: postId },
+		  { title: title, content: content },
+		  { new: true }
+		);
+		if (!post) {
+		  return "post not found";
+		}
+		return "update successfully";
+	  },
+	  postDelete: async ({ token, postId }) => {
+		const user = await auth(token);
+		const post = await Post.findOneAndDelete({ _id: postId, userId: user.id });
+		if (!post) {
+		  return "post not found";
+		}
+		return "post delete successfully";
+	  },
 }
+const commentsQuires = {
+	getComment: async ({ token, postId, commentId }) => {
+	  const user = await auth(token);
+	  const comment = await Comment.findOne({
+		userId: user.id,
+		postId,
+		_id: commentId,
+	  }).populate("postId userId");
+	  if (!comment) {
+		return "not found";
+	  }
+	  return comment;
+	},
+	getAllComments: async ({ token, postId }) => {
+	  const user = await auth(token);
+	  const comments = await Comment.find({
+		userId: user.id,
+		postId,
+	  }).populate("postId userId");
+	  return comments;
+	},
+  };
+  const commentMutation = {
+	createComment: async ({ token, postId, content }) => {
+	  const user = await auth(token);
+	  await Comment.create({
+		content,
+		postId,
+		userId: user.id,
+	  });
+	  return "comment created successfully";
+	},
+	updateComment: async ({ token, postId, commentId, content }) => {
+	  const user = await auth(token);
+	  const comment = await Comment.findOneAndUpdate(
+		{
+		  userId: user.id,
+		  postId,
+		  _id: commentId,
+		},
+		{ content: content }
+	  );
+	  if (!comment) {
+		return "not found";
+	  }
+	  return "update success";
+	},
+	deleteComment: async ({ token, postId, commentId }) => {
+		const user = await auth(token);
+		const comment = await Comment.findOneAndDelete({
+		  userId: user.id,
+		  postId,
+		  _id: commentId,
+		});
+		if (!comment) {
+		  return "not found";
+		}
+		return "delete success";
+	  },
+	};
 const resolvers = {
 	...userQueries,
 	...userMutations,
 	...postQueries,
-	...postMutations
+	...postMutations,
+	...commentMutation,
+    ...commentsQuires,
 	
 }
 app.use('/graphql', graphqlHTTP({ schema, rootValue: resolvers, graphiql: true }))
